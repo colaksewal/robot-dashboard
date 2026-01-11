@@ -74,5 +74,29 @@ const API = {
     async getStats() {
         const response = await fetch('/api/stats');
         return await response.json();
+    },
+
+    // YENİ: Rapor özeti
+    async getReportSummary() {
+        const response = await fetch('/api/reports/summary');
+        return await response.json();
+    },
+
+    // YENİ: Tek robot raporu indirme (blob olarak)
+    async downloadRobotReport(robotId) {
+        const response = await fetch(`/api/reports/robot/${robotId}/export`);
+        if (!response.ok) {
+            throw new Error('Rapor indirilemedi');
+        }
+        return await response.blob();
+    },
+
+    // YENİ: Tüm robotlar raporu indirme
+    async downloadAllRobotsReport() {
+        const response = await fetch('/api/reports/export-all');
+        if (!response.ok) {
+            throw new Error('Rapor indirilemedi');
+        }
+        return await response.blob();
     }
 };

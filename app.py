@@ -521,6 +521,173 @@ def export_report():
         as_attachment=True,
         download_name=f'robot_raporu_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
     )
+# Bu endpoint'leri app.py dosyanıza ekleyin (diğer route'ların yanına)
+
+@app.route('/api/reports/robot/<int:robot_id>/export')
+@login_required
+def export_single_robot_report(robot_id):
+    """Tek robot için Excel raporu"""
+    robot = Robot.query.filter_by(id=robot_id, user_id=current_user.id).first_or_404()
+    sensors = SensorData.query.filter_by(robot_id=robot_id).order_by(SensorData.timestamp.desc()).all()
+    
+    output = io.BytesIO()
+    workbook = xlsxwriter.Workbook(output)
+    
+    # Formatlar
+    header_format = workbook.add_format({
+        'bold': True,
+        'bg_color': '#667eea',
+        'font_color': 'white',
+        'border': 1,
+        'align': 'center'
+    })
+    
+    info_label_format = workbook.add_format({
+        'bold': True,
+        'bg_color': '#e0e7ff',
+        'border': 1
+    })
+    
+    cell_format = workbook.add_format({'border': 1})
+    
+    # Özet Sayfası
+    summary_sheet = workbook.add_worksheet('Özet')
+    summary_sheet.write('A1', 'Robot Bilgileri', header_format)
+    summary_sheet.write('A3', 'Robot ID:', info_label_format)
+    summary_sheet.write('B3', robot.id, cell_format)
+    summary_sheet.write('A4', 'Robot Adı:', info_label_format)
+    summary_sheet.write('B4', robot.name, cell_format)
+    summary_sheet.write('A5', 'Model:', info_label_format)
+    summary_sheet.write('B5', robot.model, cell_format)
+    summary_sheet.write('A6', 'Durum:', info_label_format)
+    summary_sheet.write('B6', robot.status, cell_format)
+    summary_sheet.write('A7', 'Batarya:', info_label_format)
+    summary_sheet.write('B7', f'{robot.battery}%', cell_format)
+    summary_sheet.write('A8', 'Oluşturulma:', info_label_format)
+    summary_sheet.write('B8', robot.created_at.strftime('%Y-%m-%d %H:%M:%S'), cell_format)
+    
+    if sensors:
+        avg_temp = sum(s.temperature for s in sensors) / len(sensors)
+        avg_humidity = sum(s.humidity for s in sensors) / len(sensors)
+        avg_speed = sum(s.speed for s in sensors) / len(sensors)
+        
+        summary_sheet.write('A10', 'İstatistikler', header_format)
+        summary_sheet.write('A11', 'Toplam Ölçüm:', info_label_format)
+        summary_sheet.write('B11', len(sensors), cell_format)
+        summary_sheet.write('A12', 'Ort. Sıcaklık:', info_label_format)
+        summary_sheet.write('B12', f'{round(avg_temp, 2)} °C', cell_format)
+        summary_sheet.write('A13', 'Ort. Nem:', info_label_format)
+        summary_sheet.write('B13', f'{round(avg_humidity, 2)} %', cell_format)
+        summary_sheet.write('A14', 'Ort. Hız:', info_label_format)
+        summary_sheet.write('B14', f'{round(avg_speed, 2)} m/s', cell_format)
+    
+    summary_sheet.set_column('A:A', 20)
+    summary_sheet.set_column('B:B', 30)
+    
+    # Sensor Verileri Sayfası
+    data_sheet = workbook.add_worksheet('Sensor Verileri')
+    headers = ['ID', 'Sıcaklık (°C)', 'Nem (%)', 'Hız (m/s)', 'Tarih-Saat']
+    
+    for col, header in enumerate(headers):
+        data_sheet.write(0, col, header, header_format)
+    
+    for row, sensor in enumerate(sensors, start=1):
+        data_sheet.write(row, 0, sensor.id, cell_format)
+        data_sheet.write(row, 1, sensor.temperature, cell_format)
+        data_sheet.write(row, 2, sensor.humidity, cell_format)
+        data_sheet.write(row, 3, sensor.speed, cell_format)
+        data_sheet.write(row, 4, sensor.timestamp.strftime('%Y-%m-%d %H:%M:%S'), cell_format)
+    
+    data_sheet.set_column('A:A', 8)
+    data_sheet.set_column('B:D', 15)
+    data_sheet.set_column('E:E', 20)
+    
+    workbook.close()
+    output.seek(0)
+    
+    filename = f'robot_{robot.name}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
+    
+    return send_file(
+        output,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True,
+        download_name=filename
+    )
+
+@app.route('/api/reports/export-all')
+@login_required
+def export_all_robots_report():
+    """Tüm robotlar için toplu Excel raporu"""
+    robots = Robot.query.filter_by(user_id=current_user.id).all()
+    
+    output = io.BytesIO()
+    workbook = xlsxwriter.Workbook(output)
+    worksheet = workbook.add_worksheet('Tüm Robotlar')
+    
+    header_format = workbook.add_format({
+        'bold': True,
+        'bg_color': '#667eea',
+        'font_color': 'white',
+        'border': 1,
+        'align': 'center'
+    })
+    
+    cell_format = workbook.add_format({'border': 1})
+    
+    headers = ['ID', 'Robot Adı', 'Model', 'Durum', 'Batarya (%)', 
+               'Sensor Sayısı', 'Ort. Sıcaklık (°C)', 'Ort. Nem (%)', 
+               'Ort. Hız (m/s)', 'Son Okuma', 'Oluşturulma']
+    
+    for col, header in enumerate(headers):
+        worksheet.write(0, col, header, header_format)
+    
+    row = 1
+    for robot in robots:
+        sensors = robot.sensors
+        
+        if sensors:
+            avg_temp = sum(s.temperature for s in sensors) / len(sensors)
+            avg_humidity = sum(s.humidity for s in sensors) / len(sensors)
+            avg_speed = sum(s.speed for s in sensors) / len(sensors)
+            last_reading = max(s.timestamp for s in sensors).strftime('%Y-%m-%d %H:%M:%S')
+        else:
+            avg_temp = avg_humidity = avg_speed = 0
+            last_reading = 'N/A'
+        
+        worksheet.write(row, 0, robot.id, cell_format)
+        worksheet.write(row, 1, robot.name, cell_format)
+        worksheet.write(row, 2, robot.model, cell_format)
+        worksheet.write(row, 3, robot.status, cell_format)
+        worksheet.write(row, 4, robot.battery, cell_format)
+        worksheet.write(row, 5, len(sensors), cell_format)
+        worksheet.write(row, 6, round(avg_temp, 2), cell_format)
+        worksheet.write(row, 7, round(avg_humidity, 2), cell_format)
+        worksheet.write(row, 8, round(avg_speed, 2), cell_format)
+        worksheet.write(row, 9, last_reading, cell_format)
+        worksheet.write(row, 10, robot.created_at.strftime('%Y-%m-%d %H:%M:%S'), cell_format)
+        
+        row += 1
+    
+    worksheet.set_column(0, 0, 8)
+    worksheet.set_column(1, 2, 20)
+    worksheet.set_column(3, 3, 12)
+    worksheet.set_column(4, 8, 15)
+    worksheet.set_column(9, 10, 20)
+    
+    workbook.close()
+    output.seek(0)
+    
+    return send_file(
+        output,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True,
+        download_name=f'tum_robotlar_raporu_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
+    )
+
+@app.route('/favicon.ico')
+def favicon():
+    return send_file('static/favicon.ico', mimetype='image/x-icon')
+
 # Database tablolarını otomatik oluştur
 with app.app_context():
     db.create_all()

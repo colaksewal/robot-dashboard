@@ -23,12 +23,24 @@ body {
     border-radius: 20px;
     font-size: 0.85rem;
     font-weight: 600;
+     transition: transform 0.2s, box-shadow 0.2s;
 }
 
 .status-active {
     background-color: #28a745;
     color: white;
 }
+
+.status-badge:hover {
+    transform: scale(1.05);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+
+.status-active {
+    background-color: #28a745;
+    color: white;
+}
+
 
 .status-idle {
     background-color: #ffc107;

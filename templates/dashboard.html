@@ -3,7 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Robot Dashboard</title>
+    <title>Robot Takip</title>
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+
+    <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='apple-touch-icon.png') }}">
+    
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -21,6 +27,12 @@
                 </button>
                 <button class="btn btn-info btn-sm me-3" data-bs-toggle="modal" data-bs-target="#bulkUploadModal">
                     <i class="bi bi-cloud-upload me-1"></i>Toplu Yükleme
+                </button>
+                <button class="btn btn-warning btn-sm me-3" onclick="UI.viewReportsModal()">
+                    <i class="bi bi-file-text me-1"></i>Raporlar
+                </button>
+                <button class="btn btn-outline-light btn-sm me-3" onclick="UI.downloadAllRobotsReport()">
+                    <i class="bi bi-file-earmark-excel me-1"></i>Toplu Excel İndir
                 </button>
                 <span class="text-white me-3">
                     <i class="bi bi-person-circle me-2"></i>{{ current_user.username }}
@@ -213,6 +225,60 @@
                 <div class="modal-body">
                     <div id="sensorDataContainer"></div>
                     <canvas id="sensorChart" height="80"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- YENİ: Reports Modal -->
+    <div class="modal fade" id="reportsModal" tabindex="-1">
+        <div class="modal-dialog modal-fullscreen">
+            <div class="modal-content">
+                <div class="modal-header bg-warning text-dark">
+                    <h5 class="modal-title">
+                        <i class="bi bi-file-text me-2"></i>Tüm Robotlar - Detaylı Rapor
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h6 class="mb-0">Robot Listesi ve İstatistikler</h6>
+                        <button class="btn btn-success btn-sm" onclick="UI.downloadAllRobotsReport()">
+                            <i class="bi bi-file-earmark-excel me-2"></i>Excel Olarak İndir
+                        </button>
+                    </div>
+                    
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover table-bordered">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Robot Adı</th>
+                                    <th>Model</th>
+                                    <th>Durum</th>
+                                    <th>Batarya</th>
+                                    <th>Sensor Sayısı</th>
+                                    <th>Ort. Sıcaklık</th>
+                                    <th>Ort. Nem</th>
+                                    <th>Ort. Hız</th>
+                                    <th>Son Okuma</th>
+                                    <th>Oluşturulma</th>
+                                </tr>
+                            </thead>
+                            <tbody id="reportsTableBody">
+                                <tr>
+                                    <td colspan="11" class="text-center">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">Yükleniyor...</span>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Kapat</button>
                 </div>
             </div>
         </div>

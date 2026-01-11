@@ -42,10 +42,13 @@ const UI = {
                                 <h5 class="card-title mb-1">${robot.name}</h5>
                                 <small class="text-muted">${robot.model}</small>
                             </div>
-                            <span class="status-badge status-${robot.status}">
+                            <button class="status-badge status-${robot.status}" 
+                                    style="cursor: pointer; border: none; padding: 5px 10px; border-radius: 15px;"
+                                    onclick="UI.changeRobotStatus(${robot.id}, '${robot.status}')"
+                                    title="Durumu değiştir">
                                 ${robot.status === 'active' ? 'Aktif' : 
                                   robot.status === 'idle' ? 'Beklemede' : 'Bakımda'}
-                            </span>
+                            </button>
                         </div>
                         <div class="mb-2">
                             <small class="text-muted">Batarya: ${robot.battery}%</small>
@@ -57,17 +60,20 @@ const UI = {
                             <i class="bi bi-calendar me-1"></i>Oluşturulma: ${robot.created_at}
                         </small>
                         <div class="d-grid gap-2 mt-3">
-                            <button class="btn btn-sm btn-outline-primary" onclick="UI.openUploadModal(${robot.id}, '${robot.name}')">
+                            <button class="btn btn-sm btn-outline-primary" onclick="UI.openUploadModal(${robot.id}, '${robot.name.replace(/'/g, "\\'")}')">
                                 <i class="bi bi-upload me-2"></i>Veri Yükle (JSON)
                             </button>
                             <div class="btn-group">
-                                <button class="btn btn-sm btn-outline-success" onclick="UI.viewSensorData(${robot.id}, '${robot.name}')">
+                                <button class="btn btn-sm btn-outline-success" onclick="UI.viewSensorData(${robot.id}, '${robot.name.replace(/'/g, "\\'")}')">
                                     <i class="bi bi-graph-up me-1"></i>Verileri Gör
                                 </button>
                                 <button class="btn btn-sm btn-outline-info" onclick="UI.simulateData(${robot.id})">
                                     <i class="bi bi-play-fill me-1"></i>Simüle Et
                                 </button>
                             </div>
+                            <button class="btn btn-sm btn-outline-warning" onclick="UI.downloadRobotReport(${robot.id})">
+                                <i class="bi bi-file-earmark-excel me-2"></i>Excel İndir
+                            </button>
                             <button class="btn btn-sm btn-outline-danger" onclick="UI.deleteRobot(${robot.id})">
                                 <i class="bi bi-trash me-2"></i>Sil
                             </button>
@@ -117,6 +123,69 @@ const UI = {
             UI.showToast('Robot başarıyla silindi!', 'success');
         } catch (error) {
             UI.showToast('Robot silinirken hata oluştu!', 'error');
+        }
+    },
+
+    // Robot durumunu değiştir
+    async changeRobotStatus(id, currentStatus) {
+        const statuses = ['active', 'idle', 'maintenance'];
+        const statusNames = {
+            'active': 'Aktif',
+            'idle': 'Beklemede',
+            'maintenance': 'Bakımda'
+        };
+
+        // Mevcut durumu filtrele
+        const availableStatuses = statuses.filter(s => s !== currentStatus);
+        
+        // Modal oluştur
+        const modalHtml = `
+            <div class="modal fade" id="statusModal" tabindex="-1">
+                <div class="modal-dialog modal-sm">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Durum Değiştir</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p class="mb-3">Yeni durumu seçin:</p>
+                            <div class="d-grid gap-2">
+                                ${availableStatuses.map(status => `
+                                    <button class="btn btn-outline-${status === 'active' ? 'success' : status === 'idle' ? 'warning' : 'secondary'}" 
+                                            onclick="UI.updateRobotStatus(${id}, '${status}')">
+                                        ${statusNames[status]}
+                                    </button>
+                                `).join('')}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Eski modalı kaldır
+        const oldModal = document.getElementById('statusModal');
+        if (oldModal) oldModal.remove();
+
+        // Yeni modalı ekle
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        const modal = new bootstrap.Modal(document.getElementById('statusModal'));
+        modal.show();
+    },
+
+    // Robot durumunu güncelle
+    async updateRobotStatus(id, newStatus) {
+        try {
+            await API.updateRobot(id, { status: newStatus });
+            
+            // Modalı kapat
+            const modal = bootstrap.Modal.getInstance(document.getElementById('statusModal'));
+            if (modal) modal.hide();
+            
+            await App.loadRobots();
+            UI.showToast('Robot durumu güncellendi!', 'success');
+        } catch (error) {
+            UI.showToast('Durum güncellenirken hata oluştu!', 'error');
         }
     },
 
@@ -246,9 +315,109 @@ const UI = {
         });
     },
 
+    // Tek robot için Excel raporu indir
+    async downloadRobotReport(robotId) {
+        try {
+            UI.showToast('Rapor hazırlanıyor...', 'info');
+            
+            const response = await fetch(`/api/reports/robot/${robotId}/export`);
+            
+            if (!response.ok) {
+                throw new Error('Rapor oluşturulamadı');
+            }
+            
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `robot_raporu_${robotId}_${new Date().getTime()}.xlsx`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+            
+            UI.showToast('Rapor başarıyla indirildi!', 'success');
+        } catch (error) {
+            UI.showToast('Rapor indirilemedi!', 'error');
+            console.error(error);
+        }
+    },
+
+    // Tüm robotlar için Excel raporu indir
+    async downloadAllRobotsReport() {
+        try {
+            UI.showToast('Toplu rapor hazırlanıyor...', 'info');
+            
+            const response = await fetch('/api/reports/export-all');
+            
+            if (!response.ok) {
+                throw new Error('Rapor oluşturulamadı');
+            }
+            
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `tum_robotlar_${new Date().getTime()}.xlsx`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+            
+            UI.showToast('Toplu rapor başarıyla indirildi!', 'success');
+        } catch (error) {
+            UI.showToast('Rapor indirilemedi!', 'error');
+            console.error(error);
+        }
+    },
+
+    // Raporları modalda görüntüle
+    async viewReportsModal() {
+        try {
+            const data = await API.getReportSummary();
+            const container = document.getElementById('reportsTableBody');
+            
+            if (data.length === 0) {
+                container.innerHTML = `
+                    <tr>
+                        <td colspan="11" class="text-center text-muted">
+                            <i class="bi bi-inbox me-2"></i>Henüz robot bulunmuyor
+                        </td>
+                    </tr>
+                `;
+            } else {
+                container.innerHTML = data.map(robot => `
+                    <tr>
+                        <td>${robot.id}</td>
+                        <td><strong>${robot.name}</strong></td>
+                        <td>${robot.model}</td>
+                        <td>
+                            <span class="status-badge status-${robot.status}">
+                                ${robot.status}
+                            </span>
+                        </td>
+                        <td>${robot.battery}%</td>
+                        <td>${robot.sensor_count}</td>
+                        <td>${robot.avg_temperature} °C</td>
+                        <td>${robot.avg_humidity} %</td>
+                        <td>${robot.avg_speed} m/s</td>
+                        <td><small>${robot.last_reading}</small></td>
+                        <td><small>${robot.created_at}</small></td>
+                    </tr>
+                `).join('');
+            }
+            
+            new bootstrap.Modal(document.getElementById('reportsModal')).show();
+        } catch (error) {
+            UI.showToast('Raporlar yüklenirken hata oluştu!', 'error');
+            console.error(error);
+        }
+    },
+
     // Toast bildirim göster
     showToast(message, type = 'success') {
-        const toastClass = type === 'success' ? 'bg-success' : 'bg-danger';
+        const toastClass = type === 'success' ? 'bg-success' : 
+                          type === 'error' ? 'bg-danger' : 'bg-info';
         const toast = document.createElement('div');
         toast.className = `position-fixed bottom-0 end-0 m-3 p-3 ${toastClass} text-white rounded`;
         toast.style.zIndex = '9999';
