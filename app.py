@@ -521,8 +521,9 @@ def export_report():
         as_attachment=True,
         download_name=f'robot_raporu_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
     )
+# Database tablolarını otomatik oluştur
+with app.app_context():
+    db.create_all()
 
 if __name__ == '__main__':
-    with app.app_context():
-        db.create_all()
     app.run(debug=True)
