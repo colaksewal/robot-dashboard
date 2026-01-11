@@ -12,7 +12,13 @@ import xlsxwriter
 load_dotenv()
 
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///instance/robots.db')
+
+# Database configuration - Render PostgreSQL için
+DATABASE_URL = os.getenv('DATABASE_URL')
+if DATABASE_URL and DATABASE_URL.startswith('postgres://'):
+    DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
+
+app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL or 'sqlite:///instance/robots.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
 
