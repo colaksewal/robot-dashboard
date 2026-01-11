@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Robot Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+</head>
+<body>
+    <nav class="navbar navbar-dark bg-dark mb-4">
+        <div class="container-fluid">
+            <span class="navbar-brand mb-0 h1">
+                <i class="bi bi-robot me-2"></i>Robot Takibi
+            </span>
+            <div class="d-flex align-items-center">
+                <button class="btn btn-success btn-sm me-3" data-bs-toggle="modal" data-bs-target="#addRobotModal">
+                    <i class="bi bi-plus-circle me-1"></i>Yeni Robot
+                </button>
+                <button class="btn btn-info btn-sm me-3" data-bs-toggle="modal" data-bs-target="#bulkUploadModal">
+                    <i class="bi bi-cloud-upload me-1"></i>Toplu Yükleme
+                </button>
+                <span class="text-white me-3">
+                    <i class="bi bi-person-circle me-2"></i>{{ current_user.username }}
+                </span>
+                <a href="{{ url_for('logout') }}" class="btn btn-outline-light btn-sm">
+                    <i class="bi bi-box-arrow-right me-1"></i>Çıkış
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body text-center">
+                        <h3 class="mb-0" id="totalRobots">0</h3>
+                        <small class="text-muted">Toplam Robot</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body text-center">
+                        <h3 class="mb-0 text-success" id="activeRobots">0</h3>
+                        <small class="text-muted">Aktif</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body text-center">
+                        <h3 class="mb-0 text-warning" id="idleRobots">0</h3>
+                        <small class="text-muted">Beklemede</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body text-center">
+                        <h3 class="mb-0 text-primary" id="avgBattery">0%</h3>
+                        <small class="text-muted">Ort. Batarya</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="robotsContainer" class="row g-4"></div>
+    </div>
+
+    <!-- Add Robot Modal -->
+    <div class="modal fade" id="addRobotModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Yeni Robot Ekle</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Robot Adı</label>
+                        <input type="text" class="form-control" id="robotName" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Model</label>
+                        <input type="text" class="form-control" id="robotModel" required>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
+                    <button type="button" class="btn btn-primary" id="addRobotBtn">Ekle</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Upload Sensor Data Modal -->
+    <div class="modal fade" id="uploadSensorModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title">
+                        <i class="bi bi-upload me-2"></i>Sensor Verisi Yükle
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle me-2"></i>
+                        <strong id="currentRobotName"></strong> için sensor verisi yükleyin
+                    </div>
+
+                    <div class="upload-zone" id="dropZone">
+                        <i class="bi bi-cloud-upload fs-1 text-primary"></i>
+                        <h5 class="mt-3">JSON Dosyası Sürükle & Bırak</h5>
+                        <p class="text-muted">veya</p>
+                        <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">
+                            <i class="bi bi-folder2-open me-2"></i>Dosya Seç
+                        </button>
+                        <input type="file" id="fileInput" accept=".json" style="display: none;">
+                    </div>
+
+                    <div class="mt-4">
+                        <h6>Örnek JSON Formatı:</h6>
+                        <pre class="bg-dark text-success p-3 rounded"><code>{
+  "sensors": [
+    {
+      "temperature": 24.5,
+      "humidity": 45.2,
+      "speed": 2.3
+    },
+    {
+      "temperature": 25.1,
+      "humidity": 44.8,
+      "speed": 2.5
+    }
+  ]
+}</code></pre>
+                    </div>
+
+                    <div id="uploadResult" class="mt-3"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bulk Upload Modal -->
+    <div class="modal fade" id="bulkUploadModal" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header bg-info text-white">
+                    <h5 class="modal-title">
+                        <i class="bi bi-cloud-upload me-2"></i>Toplu Veri Yükleme
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle me-2"></i>
+                        Tüm robotlar için toplu sensor verisi yükleyin
+                    </div>
+
+                    <div class="upload-zone" id="bulkDropZone">
+                        <i class="bi bi-cloud-upload fs-1 text-info"></i>
+                        <h5 class="mt-3">JSON Dosyası Sürükle & Bırak</h5>
+                        <p class="text-muted">veya</p>
+                        <button class="btn btn-info" onclick="document.getElementById('bulkFileInput').click()">
+                            <i class="bi bi-folder2-open me-2"></i>Dosya Seç
+                        </button>
+                        <input type="file" id="bulkFileInput" accept=".json" style="display: none;">
+                    </div>
+
+                    <div class="mt-4">
+                        <h6>Örnek Toplu Yükleme JSON Formatı:</h6>
+                        <pre class="bg-dark text-success p-3 rounded"><code>{
+  "robots": [
+    {
+      "robot_id": 1,
+      "sensors": [
+        {"temperature": 24.5, "humidity": 45.2, "speed": 2.3},
+        {"temperature": 25.1, "humidity": 44.8, "speed": 2.5}
+      ]
+    },
+    {
+      "robot_id": 2,
+      "sensors": [
+        {"temperature": 23.8, "humidity": 47.1, "speed": 1.9}
+      ]
+    }
+  ]
+}</code></pre>
+                    </div>
+
+                    <div id="bulkUploadResult" class="mt-3"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- View Sensor Data Modal -->
+    <div class="modal fade" id="viewSensorModal" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title">
+                        <i class="bi bi-graph-up me-2"></i>Sensor Verileri
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="sensorDataContainer"></div>
+                    <canvas id="sensorChart" height="80"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='js/api.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/ui.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/upload.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
